@@ -6,15 +6,11 @@ WORKDIR /app
 # Copy application code
 COPY . .
 
-# Temporarily rename composer.json to avoid scripts during build
-RUN mv composer.json composer.json.bak
+# Remove problematic scripts from composer.json during build
+RUN sed -i '/"scripts":/,/}/d' composer.json
 
-# Install composer dependencies without running scripts and autoloader
-RUN composer install --no-dev --ignore-platform-reqs --no-interaction --no-scripts --no-autoloader
-
-# Restore composer.json and generate autoloader without triggering scripts
-RUN mv composer.json.bak composer.json && \
-    composer dump-autoload --optimize --no-dev --no-scripts
+# Install composer dependencies without scripts
+RUN composer install --no-dev --ignore-platform-reqs --no-interaction
 
 # Set permissions
 RUN chown -R application:application /app && \
