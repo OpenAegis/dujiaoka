@@ -2,7 +2,7 @@ version: "3.8"
 
 services:
   app:
-    image: ghcr.io/openAegis/dujiaoka:latest
+    image: ghcr.io/openAegis/dujiaoka:${DOCKER_TAG:-latest}
     container_name: dujiaoka_app
     restart: unless-stopped
     ports:

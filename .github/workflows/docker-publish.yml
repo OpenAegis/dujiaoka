@@ -33,16 +33,43 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
+    - name: Get latest tag
+      id: get_tag
+      run: |
+        # Get latest tag, fallback to v2.1.0 if no tags
+        LATEST_TAG=$(git tag --sort=-version:refname | head -1 || echo "v2.1.0")
+        echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+        
+        # Generate build number based on commit count since last tag
+        if [ -n "$(git tag)" ]; then
+          BUILD_NUMBER=$(git rev-list --count ${LATEST_TAG}..HEAD)
+        else
+          BUILD_NUMBER=$(git rev-list --count HEAD)
+        fi
+        echo "build_number=$BUILD_NUMBER" >> $GITHUB_OUTPUT
+        
+        # Extract version number without 'v' prefix
+        VERSION=${LATEST_TAG#v}
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+
     - name: Extract metadata (tags, labels)
       id: meta
       uses: docker/metadata-action@v5
       with:
         images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
         tags: |
-          type=ref,event=branch
-          type=ref,event=pr
+          # For tags: use exact version
           type=semver,pattern={{version}}
           type=semver,pattern={{major}}.{{minor}}
+          type=semver,pattern={{major}}
+          # For main branch: use version + build number
+          type=raw,value=${{ steps.get_tag.outputs.version }}-build.${{ steps.get_tag.outputs.build_number }},enable={{is_default_branch}}
+          # For main branch: also tag as latest
+          type=raw,value=latest,enable={{is_default_branch}}
+          # For PR: use pr number
+          type=ref,event=pr,prefix=pr-
+          # For other branches: use branch name
+          type=ref,event=branch,enable=${{ github.ref_name != 'main' }}
 
     - name: Build and push Docker image
       uses: docker/build-push-action@v5
