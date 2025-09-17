@@ -271,6 +271,8 @@ REDIS_PORT=6379
 LOG_CHANNEL=stack
 DUJIAO_ADMIN_LANGUAGE=zh_CN
 ADMIN_ROUTE_PREFIX=/admin
+APP_LOCALE=zh_CN
+APP_FALLBACK_LOCALE=zh_CN
 DOCKER_TAG=latest
 EOF
 
@@ -343,6 +345,17 @@ docker exec dujiaoka_app chmod -R 777 /app/storage /app/bootstrap/cache
 # 清理可能存在的缓存文件
 docker exec dujiaoka_app rm -rf /app/storage/framework/cache/* 2>/dev/null || true
 docker exec dujiaoka_app rm -rf /app/bootstrap/cache/* 2>/dev/null || true
+
+# 清理Laravel缓存，修复语言文件加载问题
+echo "  清理Laravel缓存..."
+docker exec dujiaoka_app php artisan config:clear 2>/dev/null || true
+docker exec dujiaoka_app php artisan cache:clear 2>/dev/null || true
+docker exec dujiaoka_app php artisan view:clear 2>/dev/null || true
+docker exec dujiaoka_app php artisan route:clear 2>/dev/null || true
+
+# 重新缓存配置
+echo "  重新缓存配置..."
+docker exec dujiaoka_app php artisan config:cache 2>/dev/null || true
 
 # 首次安装时导入数据库
 if [ "$UPDATE_MODE" != true ]; then
