@@ -129,14 +129,14 @@ class Installer
                 
                 // 数据库配置
                 'DB_CONNECTION' => 'mysql',
-                'DB_HOST' => $data['db_host'] ?? '127.0.0.1',
+                'DB_HOST' => $data['db_host'] ?? 'mysql',
                 'DB_PORT' => $data['db_port'] ?? '3306',
                 'DB_DATABASE' => $data['db_database'] ?? 'dujiaoka',
-                'DB_USERNAME' => $data['db_username'] ?? 'root',
+                'DB_USERNAME' => $data['db_username'] ?? 'dujiaoka',
                 'DB_PASSWORD' => $data['db_password'] ?? '',
                 
                 // Redis配置
-                'REDIS_HOST' => $data['redis_host'] ?? '127.0.0.1',
+                'REDIS_HOST' => $data['redis_host'] ?? 'redis',
                 'REDIS_PASSWORD' => empty($data['redis_password']) ? 'null' : $data['redis_password'],
                 'REDIS_PORT' => $data['redis_port'] ?? '6379',
                 

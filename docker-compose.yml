@@ -36,7 +36,7 @@ services:
       MYSQL_USER: ${DB_USERNAME:-dujiaoka}
       MYSQL_PASSWORD: ${DB_PASSWORD}
     volumes:
-      - mysql_data:/var/lib/mysql
+      - /opt/dujiaoka/mysql:/var/lib/mysql
     ports:
       - "3306:3306"
     networks:
@@ -48,15 +48,13 @@ services:
     restart: unless-stopped
     command: redis-server --appendonly yes
     volumes:
-      - redis_data:/data
+      - /opt/dujiaoka/redis:/data
     ports:
       - "6379:6379"
     networks:
       - dujiaoka
 
-volumes:
-  mysql_data:
-  redis_data:
+# 不再使用命名卷，直接挂载目录到 /opt/dujiaoka/mysql 和 /opt/dujiaoka/redis
 
 networks:
   dujiaoka:

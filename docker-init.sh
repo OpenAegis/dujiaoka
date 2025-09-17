@@ -43,9 +43,9 @@ if [ -d "$DUJIAOKA_DIR" ] && [ "$(ls -A $DUJIAOKA_DIR 2>/dev/null)" ]; then
             # 停止并删除容器
             docker stop dujiaoka_app dujiaoka_mysql dujiaoka_redis 2>/dev/null || true
             docker rm dujiaoka_app dujiaoka_mysql dujiaoka_redis 2>/dev/null || true
-            # 删除数据卷
-            docker volume rm dujiaoka_mysql_data dujiaoka_redis_data 2>/dev/null || true
-            # 删除目录
+            # 删除数据目录
+            rm -rf "$DUJIAOKA_DIR/mysql" "$DUJIAOKA_DIR/redis" 2>/dev/null || true
+            # 删除整个目录
             rm -rf "$DUJIAOKA_DIR"
             echo "✅ 卸载完成，开始重新安装..."
             UPDATE_MODE=false
@@ -66,9 +66,9 @@ if [ -d "$DUJIAOKA_DIR" ] && [ "$(ls -A $DUJIAOKA_DIR 2>/dev/null)" ]; then
             docker stop dujiaoka_app dujiaoka_mysql dujiaoka_redis 2>/dev/null || true
             docker rm dujiaoka_app dujiaoka_mysql dujiaoka_redis 2>/dev/null || true
             
-            # 删除数据卷
-            echo "  删除数据卷..."
-            docker volume rm dujiaoka_mysql_data dujiaoka_redis_data 2>/dev/null || true
+            # 删除数据目录
+            echo "  删除数据目录..."
+            rm -rf "$DUJIAOKA_DIR/mysql" "$DUJIAOKA_DIR/redis" 2>/dev/null || true
             
             # 删除网络
             echo "  删除网络..."
@@ -118,6 +118,8 @@ fi
 # 创建目录结构
 echo "📁 创建目录结构..."
 mkdir -p "$DUJIAOKA_DIR"
+mkdir -p "$DUJIAOKA_DIR/mysql"
+mkdir -p "$DUJIAOKA_DIR/redis"
 
 # 拉取最新镜像
 echo "⬇️  拉取最新镜像..."
@@ -271,9 +273,19 @@ echo "🔧 设置容器内权限..."
 docker exec dujiaoka_app chown -R www-data:www-data /app/storage /app/bootstrap/cache
 docker exec dujiaoka_app chmod -R 777 /app/storage /app/bootstrap/cache
 
-# 验证数据库连接
-echo "✅ 数据库连接验证完成"
-echo "   网站首次访问时将自动初始化数据库"
+# 首次安装时导入数据库
+if [ "$UPDATE_MODE" != true ]; then
+    echo "📊 导入初始数据库..."
+    if [ -f "$DUJIAOKA_DIR/database/sql/install.sql" ]; then
+        echo "  找到安装SQL文件，开始导入..."
+        docker exec -i dujiaoka_mysql mysql -u dujiaoka -p"$DB_PASSWORD" dujiaoka < "$DUJIAOKA_DIR/database/sql/install.sql" && echo "✅ 数据库导入成功" || echo "❌ 数据库导入失败"
+    else
+        echo "  未找到install.sql文件，跳过数据库导入"
+        echo "  网站首次访问时将自动初始化数据库"
+    fi
+else
+    echo "✅ 更新模式，跳过数据库导入"
+fi
 
 echo ""
 if [ "$UPDATE_MODE" = true ]; then
