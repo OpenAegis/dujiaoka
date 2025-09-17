@@ -18,9 +18,51 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
+# 获取用户自定义域名/URL
+echo ""
+echo "🌐 配置访问地址"
+echo "请输入您的域名或IP地址 (不包含http://)"
+echo "示例: example.com 或 192.168.1.100 或 localhost"
+read -p "域名/IP地址: " USER_DOMAIN
+
+# 验证输入
+if [ -z "$USER_DOMAIN" ]; then
+    echo "⚠️  未输入域名，使用默认 localhost"
+    USER_DOMAIN="localhost"
+fi
+
+# 询问端口
+echo ""
+echo "请输入访问端口 (默认: 8080)"
+read -p "端口: " USER_PORT
+
+if [ -z "$USER_PORT" ]; then
+    USER_PORT="8080"
+fi
+
+# 验证端口是否为数字
+if ! [[ "$USER_PORT" =~ ^[0-9]+$ ]]; then
+    echo "❌ 端口必须是数字，使用默认端口 8080"
+    USER_PORT="8080"
+fi
+
+# 构建完整URL
+APP_URL="http://${USER_DOMAIN}:${USER_PORT}"
+echo ""
+echo "✅ 访问地址设置为: $APP_URL"
+echo ""
+
 
 # 检查是否已存在安装
 if [ -d "$DUJIAOKA_DIR" ] && [ "$(ls -A $DUJIAOKA_DIR 2>/dev/null)" ]; then
+    # 对于已存在安装，读取现有配置
+    if [ -f "$DUJIAOKA_DIR/.env.docker-compose" ]; then
+        EXISTING_APP_URL=$(grep "APP_URL" "$DUJIAOKA_DIR/.env.docker-compose" | cut -d'=' -f2)
+        if [ -n "$EXISTING_APP_URL" ]; then
+            APP_URL="$EXISTING_APP_URL"
+            echo "📍 检测到现有配置，访问地址: $APP_URL"
+        fi
+    fi
     echo "⚠️  检测到已存在的独角数卡安装"
     echo "目录: $DUJIAOKA_DIR"
     echo ""
@@ -148,27 +190,7 @@ else
     APP_KEY="base64:$(openssl rand -base64 32)"
 fi
 
-# 创建或更新.env文件
-echo "  创建/更新.env配置文件..."
-cat > "$DUJIAOKA_DIR/.env" << EOF
-APP_NAME=独角数卡
-APP_ENV=production
-APP_KEY=$APP_KEY
-APP_DEBUG=false
-APP_URL=http://localhost:8080
-
-DB_CONNECTION=mysql
-DB_HOST=mysql
-DB_PORT=3306
-DB_DATABASE=dujiaoka
-DB_USERNAME=dujiaoka
-DB_PASSWORD=$DB_PASSWORD
-
-CACHE_DRIVER=redis
-SESSION_DRIVER=redis
-REDIS_HOST=redis
-REDIS_PORT=6379
-EOF
+# 所有配置通过docker环境变量传递，无需创建.env文件
 
 
 # 清理临时容器
@@ -223,18 +245,42 @@ cd "$DUJIAOKA_DIR"
 
 # 创建docker-compose环境文件
 cat > .env.docker-compose << EOF
+# 应用配置
+APP_NAME=独角数卡
+APP_ENV=production
+APP_KEY=$APP_KEY
+APP_DEBUG=false
+APP_URL=$APP_URL
+
+# 数据库配置
+DB_CONNECTION=mysql
+DB_HOST=mysql
+DB_PORT=3306
 DB_DATABASE=dujiaoka
 DB_USERNAME=dujiaoka
 DB_PASSWORD=$DB_PASSWORD
 MYSQL_ROOT_PASSWORD=$MYSQL_ROOT_PASSWORD
-APP_KEY=$APP_KEY
-APP_URL=http://localhost:8080
+
+# 缓存配置
+CACHE_DRIVER=redis
+SESSION_DRIVER=redis
+REDIS_HOST=redis
+REDIS_PORT=6379
+
+# 其他配置
+LOG_CHANNEL=stack
+DUJIAO_ADMIN_LANGUAGE=zh_CN
+ADMIN_ROUTE_PREFIX=/admin
 DOCKER_TAG=latest
 EOF
 
 # 下载docker-compose配置文件
 echo "📥 下载docker-compose配置..."
 curl -sSL https://raw.githubusercontent.com/OpenAegis/dujiaoka/main/docker-compose.dev.yml -o docker-compose.yml
+
+# 修改端口映射
+echo "🔧 配置自定义端口..."
+sed -i "s/\"8080:80\"/\"$USER_PORT:80\"/g" docker-compose.yml
 
 # 启动服务
 echo "🚀 启动独角数卡服务..."
@@ -318,7 +364,7 @@ if [ "$UPDATE_MODE" = true ]; then
 else
     echo "🎉 独角数卡安装完成！"
 fi
-echo "🌐 访问地址: http://localhost:8080"
+echo "🌐 访问地址: $APP_URL"
 echo "🔑 数据库密码: $DB_PASSWORD"
 echo "🔑 Root密码: $MYSQL_ROOT_PASSWORD"
 echo ""
