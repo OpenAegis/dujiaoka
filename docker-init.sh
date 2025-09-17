@@ -27,10 +27,11 @@ if [ -d "$DUJIAOKA_DIR" ] && [ "$(ls -A $DUJIAOKA_DIR 2>/dev/null)" ]; then
     echo "请选择操作："
     echo "1) 更新到最新版本 (保留数据)"
     echo "2) 完全卸载后重装"
-    echo "3) 显示当前数据库密码"
-    echo "4) 退出"
+    echo "3) 仅卸载 (不重装)"
+    echo "4) 显示当前数据库密码"
+    echo "5) 退出"
     echo ""
-    read -p "请输入选项 (1-4): " choice
+    read -p "请输入选项 (1-5): " choice
     
     case $choice in
         1)
@@ -50,6 +51,45 @@ if [ -d "$DUJIAOKA_DIR" ] && [ "$(ls -A $DUJIAOKA_DIR 2>/dev/null)" ]; then
             UPDATE_MODE=false
             ;;
         3)
+            echo "🗑️ 仅卸载独角数卡..."
+            
+            # 如果存在docker-compose文件，使用它来清理
+            if [ -f "$DUJIAOKA_DIR/docker-compose.yml" ]; then
+                echo "  使用docker-compose清理..."
+                cd "$DUJIAOKA_DIR"
+                docker-compose down -v --remove-orphans 2>/dev/null || true
+                cd - > /dev/null
+            fi
+            
+            # 手动停止并删除容器
+            echo "  停止并删除容器..."
+            docker stop dujiaoka_app dujiaoka_mysql dujiaoka_redis 2>/dev/null || true
+            docker rm dujiaoka_app dujiaoka_mysql dujiaoka_redis 2>/dev/null || true
+            
+            # 删除数据卷
+            echo "  删除数据卷..."
+            docker volume rm dujiaoka_mysql_data dujiaoka_redis_data 2>/dev/null || true
+            
+            # 删除网络
+            echo "  删除网络..."
+            docker network rm dujiaoka 2>/dev/null || true
+            
+            # 删除目录
+            echo "  删除应用目录..."
+            rm -rf "$DUJIAOKA_DIR"
+            
+            # 清理未使用的Docker资源
+            echo "  清理Docker资源..."
+            docker system prune -f 2>/dev/null || true
+            
+            echo "✅ 独角数卡已完全卸载"
+            echo ""
+            echo "💡 提示："
+            echo "   • 所有数据已删除且无法恢复"
+            echo "   • 如需重新安装，请重新运行此脚本"
+            exit 0
+            ;;
+        4)
             if [ -f "$DUJIAOKA_DIR/.env.docker-compose" ]; then
                 echo ""
                 echo "🔑 当前数据库密码："
@@ -61,7 +101,7 @@ if [ -d "$DUJIAOKA_DIR" ] && [ "$(ls -A $DUJIAOKA_DIR 2>/dev/null)" ]; then
             fi
             exit 0
             ;;
-        4)
+        5)
             echo "👋 退出安装"
             exit 0
             ;;
