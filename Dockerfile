@@ -3,16 +3,13 @@ FROM webdevops/php-nginx:8.2
 # Set working directory
 WORKDIR /app
 
-# Copy composer files first for better caching
-COPY composer.json composer.lock ./
-
-# Install composer dependencies without running scripts
-RUN composer install --no-dev --ignore-platform-reqs --no-interaction --no-scripts
-
 # Copy application code
 COPY . .
 
-# Generate optimized autoloader
+# Install composer dependencies without running scripts and autoloader
+RUN composer install --no-dev --ignore-platform-reqs --no-interaction --no-scripts --no-autoloader
+
+# Generate optimized autoloader after all files are in place
 RUN composer dump-autoload --optimize --no-dev
 
 # Set permissions
