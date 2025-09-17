@@ -40,42 +40,25 @@ jobs:
         echo "Current ref: ${{ github.ref_name }}"
         echo "Current commit: ${{ github.sha }}"
         
-        # Set default version
-        DEFAULT_VERSION="2.1.0"
-        
-        # Get latest tag
-        LATEST_TAG=$(git tag --sort=-version:refname | head -1 2>/dev/null || echo "")
-        echo "Latest tag found: '$LATEST_TAG'"
-        
-        if [ -z "$LATEST_TAG" ]; then
-          # No tags found, use default
-          BASE_VERSION="$DEFAULT_VERSION"
-          BUILD_NUMBER=$(git rev-list --count HEAD)
-          echo "No tags found, using default version: $BASE_VERSION"
-        else
-          # Extract version number without 'v' prefix
-          BASE_VERSION=${LATEST_TAG#v}
-          # Generate build number based on commit count since last tag
-          BUILD_NUMBER=$(git rev-list --count ${LATEST_TAG}..HEAD 2>/dev/null || echo "0")
-          echo "Tag found: $LATEST_TAG -> Base version: $BASE_VERSION"
-        fi
-        
-        echo "Build number: $BUILD_NUMBER"
-        echo "base_version=$BASE_VERSION" >> $GITHUB_OUTPUT
-        echo "build_number=$BUILD_NUMBER" >> $GITHUB_OUTPUT
-        
-        # Create version for main branch
+        # Always use timestamp-based build number for main branch
         if [ "${{ github.ref_name }}" = "main" ]; then
-          if [ "$BUILD_NUMBER" -gt "0" ]; then
-            FULL_VERSION="${BASE_VERSION}-build.${BUILD_NUMBER}"
-            echo "Main branch with new commits: $FULL_VERSION"
-          else
-            FULL_VERSION="$BASE_VERSION"
-            echo "Main branch, no new commits: $FULL_VERSION"
-          fi
+          # Get latest tag or use default
+          LATEST_TAG=$(git tag --sort=-version:refname | head -1 2>/dev/null || echo "v2.1.0")
+          BASE_VERSION=${LATEST_TAG#v}
+          
+          # Use current timestamp for unique build number
+          BUILD_NUMBER=$(date +%Y%m%d%H%M)
+          FULL_VERSION="${BASE_VERSION}-build.${BUILD_NUMBER}"
+          
+          echo "Latest tag: $LATEST_TAG"
+          echo "Base version: $BASE_VERSION"
+          echo "Build number: $BUILD_NUMBER" 
+          echo "Generated version: $FULL_VERSION"
         else
-          FULL_VERSION="$BASE_VERSION"
-          echo "Non-main branch: $FULL_VERSION"
+          # For non-main branches, use simple version
+          LATEST_TAG=$(git tag --sort=-version:refname | head -1 2>/dev/null || echo "v2.1.0")
+          FULL_VERSION=${LATEST_TAG#v}
+          echo "Non-main branch version: $FULL_VERSION"
         fi
         
         echo "full_version=$FULL_VERSION" >> $GITHUB_OUTPUT
