@@ -18,15 +18,7 @@ services:
       APP_URL: ${APP_URL:-http://localhost:8080}
       APP_KEY: ${APP_KEY}
     volumes:
-      - app_storage:/app/storage
-      - app_public:/app/public/uploads
-      - /opt/dujiaoka/app:/app/app
-      - /opt/dujiaoka/config:/app/config
-      - /opt/dujiaoka/resources:/app/resources
-      - /opt/dujiaoka/routes:/app/routes
-      - /opt/dujiaoka/database:/app/database
-      - /opt/dujiaoka/public:/app/public
-      - /opt/dujiaoka/.env:/app/.env
+      - /opt/dujiaoka:/app
     depends_on:
       - mysql
       - redis
@@ -64,8 +56,6 @@ services:
 volumes:
   mysql_data:
   redis_data:
-  app_storage:
-  app_public:
 
 networks:
   dujiaoka:
