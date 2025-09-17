@@ -136,7 +136,12 @@ docker rm "$CONTAINER_NAME" > /dev/null
 echo "🔧 设置目录权限..."
 chown -R 1000:1000 "$DUJIAOKA_DIR"
 chmod -R 755 "$DUJIAOKA_DIR"
-chmod -R 777 "$DUJIAOKA_DIR/storage" "$DUJIAOKA_DIR/bootstrap/cache" 2>/dev/null || true
+# 设置Laravel必要的写入权限
+chmod -R 777 "$DUJIAOKA_DIR/storage" 2>/dev/null || true
+chmod -R 777 "$DUJIAOKA_DIR/bootstrap/cache" 2>/dev/null || true
+# 确保日志目录存在并有权限
+mkdir -p "$DUJIAOKA_DIR/storage/logs" 2>/dev/null || true
+chmod -R 777 "$DUJIAOKA_DIR/storage/logs" 2>/dev/null || true
 
 echo ""
 echo "✅ 初始化完成！"
@@ -223,7 +228,36 @@ docker exec dujiaoka_mysql mysql -u dujiaoka -p"$DB_PASSWORD" -e "SELECT 1;" duj
 
 # 初始化数据库
 echo "📊 初始化数据库..."
-docker exec dujiaoka_app php artisan migrate --force 2>/dev/null || echo "数据库迁移失败，请手动执行"
+
+# 确保容器内权限正确
+echo "  设置容器内权限..."
+docker exec dujiaoka_app chown -R www-data:www-data /app/storage /app/bootstrap/cache
+docker exec dujiaoka_app chmod -R 777 /app/storage /app/bootstrap/cache
+
+# 清理配置缓存
+echo "  清理Laravel缓存..."
+docker exec dujiaoka_app php artisan config:clear || true
+docker exec dujiaoka_app php artisan cache:clear || true
+
+# 生成应用密钥
+echo "  生成应用密钥..."
+docker exec dujiaoka_app php artisan key:generate --force || true
+
+# 执行数据库迁移
+echo "  执行数据库迁移..."
+docker exec dujiaoka_app php artisan migrate --force && echo "✅ 数据库迁移成功" || {
+    echo "❌ 数据库迁移失败，尝试详细调试..."
+    echo "检查数据库连接..."
+    docker exec dujiaoka_app php artisan tinker --execute="DB::connection()->getPdo();" || echo "数据库连接失败"
+    echo "查看迁移状态..."
+    docker exec dujiaoka_app php artisan migrate:status || echo "无法查看迁移状态"
+}
+
+# 创建管理员账户 (如果是新安装)
+if [ "$UPDATE_MODE" != true ]; then
+    echo "  创建管理员账户..."
+    docker exec dujiaoka_app php artisan admin:create-user --force 2>/dev/null || echo "管理员账户创建失败，请手动创建"
+fi
 
 echo ""
 if [ "$UPDATE_MODE" = true ]; then
