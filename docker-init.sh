@@ -18,6 +18,7 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
+
 # 检查是否已存在安装
 if [ -d "$DUJIAOKA_DIR" ] && [ "$(ls -A $DUJIAOKA_DIR 2>/dev/null)" ]; then
     echo "⚠️  检测到已存在的独角数卡安装"
@@ -159,9 +160,13 @@ cd "$DUJIAOKA_DIR"
 
 # 创建docker-compose环境文件
 cat > .env.docker-compose << EOF
+DB_DATABASE=dujiaoka
+DB_USERNAME=dujiaoka
 DB_PASSWORD=$DB_PASSWORD
 MYSQL_ROOT_PASSWORD=$MYSQL_ROOT_PASSWORD
 APP_KEY=$APP_KEY
+APP_URL=http://localhost:8080
+DOCKER_TAG=latest
 EOF
 
 # 下载docker-compose配置文件
@@ -179,6 +184,21 @@ sleep 30
 # 检查服务状态
 echo "📊 检查服务状态..."
 docker-compose --env-file .env.docker-compose ps
+
+# 等待MySQL完全启动
+echo "⏳ 等待MySQL完全启动..."
+for i in {1..30}; do
+    if docker exec dujiaoka_mysql mysqladmin ping -h localhost --silent; then
+        echo "✅ MySQL已就绪"
+        break
+    fi
+    echo "  等待MySQL启动... ($i/30)"
+    sleep 2
+done
+
+# 检查数据库连接
+echo "🔍 测试数据库连接..."
+docker exec dujiaoka_mysql mysql -u dujiaoka -p"$DB_PASSWORD" -e "SELECT 1;" dujiaoka 2>/dev/null && echo "✅ 数据库连接成功" || echo "❌ 数据库连接失败"
 
 # 初始化数据库
 echo "📊 初始化数据库..."
