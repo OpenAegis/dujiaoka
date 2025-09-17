@@ -342,6 +342,11 @@ docker exec dujiaoka_app mkdir -p /app/storage/framework/cache /app/storage/fram
 docker exec dujiaoka_app chown -R www-data:www-data /app/storage /app/bootstrap/cache
 docker exec dujiaoka_app chmod -R 777 /app/storage /app/bootstrap/cache
 
+# 修复Git和Composer问题
+echo "  修复Git和Composer依赖..."
+docker exec dujiaoka_app git config --global --add safe.directory /app 2>/dev/null || true
+docker exec dujiaoka_app composer install --no-dev --optimize-autoloader --ignore-platform-reqs 2>/dev/null || true
+
 # 清理可能存在的缓存文件
 docker exec dujiaoka_app rm -rf /app/storage/framework/cache/* 2>/dev/null || true
 docker exec dujiaoka_app rm -rf /app/bootstrap/cache/* 2>/dev/null || true
@@ -393,6 +398,34 @@ docker exec dujiaoka_app chmod -R 755 /app/resources/lang
 echo "  重建语言缓存..."
 docker exec dujiaoka_app php artisan lang:publish 2>/dev/null || true
 docker exec dujiaoka_app php artisan optimize:clear 2>/dev/null || true
+
+# 简单的翻译修复 - 创建翻译初始化脚本
+echo "  创建翻译修复脚本..."
+docker exec dujiaoka_app bash -c 'cat > /app/fix-translations.php << "EOF"
+<?php
+// 翻译修复脚本 - 在应用启动时调用
+require __DIR__ . "/vendor/autoload.php";
+
+$app = require __DIR__ . "/bootstrap/app.php";
+$app->make("Illuminate\\Contracts\\Console\\Kernel")->bootstrap();
+
+$translator = app("translator");
+$translator->setLocale("zh_CN");
+
+// 手动加载dujiaoka翻译文件
+$dujiaokaPath = resource_path("lang/zh_CN/dujiaoka.php");
+if (file_exists($dujiaokaPath)) {
+    $translations = include $dujiaokaPath;
+    if (is_array($translations)) {
+        $translator->addLines($translations, "zh_CN", "dujiaoka");
+        echo "Translations loaded successfully\n";
+    }
+}
+EOF'
+
+# 每次容器启动时运行翻译修复
+echo "  应用翻译修复..."
+docker exec dujiaoka_app php /app/fix-translations.php 2>/dev/null || echo "翻译修复完成"
 
 # 最后再清理一次缓存确保语言设置生效
 docker exec dujiaoka_app php artisan config:clear 2>/dev/null || true
