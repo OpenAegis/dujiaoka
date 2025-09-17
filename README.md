@@ -17,7 +17,28 @@
 
 - 升级框架至 **Laravel 12**
 - 使用 **Filament 3** 作为后台管理系统
+- 集成 **Docker 一键部署** 与翻译修复系统
 - 以及超多新增功能与优化
+
+## :gear: Docker 部署特性
+
+### 翻译系统修复
+项目针对 Laravel 12 的翻译系统兼容性问题，集成了自动翻译修复功能：
+
+- **自动修复**: 部署脚本会自动安装翻译修复系统
+- **透明处理**: 无需手动干预，自动处理翻译键显示问题  
+- **多语言支持**: 支持中文（简体/繁体）和英文翻译
+- **性能优化**: 使用缓存机制，不影响应用性能
+
+### 一键部署命令
+```bash
+# 完整安装（推荐）
+sudo bash <(curl -sSL https://raw.githubusercontent.com/OpenAegis/dujiaoka/main/docker-init.sh)
+
+# 或下载后执行
+curl -sSL https://raw.githubusercontent.com/OpenAegis/dujiaoka/main/docker-init.sh -o docker-init.sh
+sudo bash docker-init.sh
+```
 
 ## :sparkles: 部分功能特性
 
