@@ -1,10 +1,65 @@
-version: "2.2"
+version: "3.8"
+
 services:
-  web:
-    build: .
+  app:
+    image: ghcr.io/openAegis/dujiaoka:latest
+    container_name: dujiaoka_app
+    restart: unless-stopped
     ports:
-      - "80:80"
-      - "9000:9000"
+      - "8080:80"
     environment:
       WEB_DOCUMENT_ROOT: "/app/public"
-    tty: true
+      DB_HOST: mysql
+      DB_DATABASE: dujiaoka
+      DB_USERNAME: dujiaoka
+      DB_PASSWORD: ${DB_PASSWORD:-dujiaoka123}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      APP_URL: ${APP_URL:-http://localhost:8080}
+      APP_KEY: ${APP_KEY}
+    volumes:
+      - app_storage:/app/storage
+      - app_public:/app/public/uploads
+    depends_on:
+      - mysql
+      - redis
+    networks:
+      - dujiaoka
+
+  mysql:
+    image: mysql:8.0
+    container_name: dujiaoka_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root123}
+      MYSQL_DATABASE: dujiaoka
+      MYSQL_USER: dujiaoka
+      MYSQL_PASSWORD: ${DB_PASSWORD:-dujiaoka123}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    networks:
+      - dujiaoka
+
+  redis:
+    image: redis:7-alpine
+    container_name: dujiaoka_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - dujiaoka
+
+volumes:
+  mysql_data:
+  redis_data:
+  app_storage:
+  app_public:
+
+networks:
+  dujiaoka:
+    driver: bridge
