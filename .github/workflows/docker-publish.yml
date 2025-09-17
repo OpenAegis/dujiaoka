@@ -33,24 +33,32 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Get latest tag
-      id: get_tag
+    - name: Get version info
+      id: get_version
       run: |
         # Get latest tag, fallback to v2.1.0 if no tags
-        LATEST_TAG=$(git tag --sort=-version:refname | head -1 || echo "v2.1.0")
+        LATEST_TAG=$(git tag --sort=-version:refname | head -1 2>/dev/null || echo "v2.1.0")
         echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
         
+        # Extract version number without 'v' prefix
+        BASE_VERSION=${LATEST_TAG#v}
+        echo "base_version=$BASE_VERSION" >> $GITHUB_OUTPUT
+        
         # Generate build number based on commit count since last tag
-        if [ -n "$(git tag)" ]; then
-          BUILD_NUMBER=$(git rev-list --count ${LATEST_TAG}..HEAD)
+        if git tag | grep -q .; then
+          BUILD_NUMBER=$(git rev-list --count ${LATEST_TAG}..HEAD 2>/dev/null || echo "0")
         else
           BUILD_NUMBER=$(git rev-list --count HEAD)
         fi
         echo "build_number=$BUILD_NUMBER" >> $GITHUB_OUTPUT
         
-        # Extract version number without 'v' prefix
-        VERSION=${LATEST_TAG#v}
-        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        # Create full version with build number for main branch
+        if [ "${{ github.ref_name }}" = "main" ] && [ "$BUILD_NUMBER" -gt "0" ]; then
+          FULL_VERSION="${BASE_VERSION}-build.${BUILD_NUMBER}"
+        else
+          FULL_VERSION="$BASE_VERSION"
+        fi
+        echo "full_version=$FULL_VERSION" >> $GITHUB_OUTPUT
 
     - name: Extract metadata (tags, labels)
       id: meta
@@ -58,12 +66,12 @@ jobs:
       with:
         images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
         tags: |
-          # For tags: use exact version
+          # For git tags: use semantic versioning
           type=semver,pattern={{version}}
           type=semver,pattern={{major}}.{{minor}}
           type=semver,pattern={{major}}
-          # For main branch: use version + build number
-          type=raw,value=${{ steps.get_tag.outputs.version }}-build.${{ steps.get_tag.outputs.build_number }},enable={{is_default_branch}}
+          # For main branch: use full version (base version + build number if applicable)
+          type=raw,value=${{ steps.get_version.outputs.full_version }},enable={{is_default_branch}}
           # For main branch: also tag as latest
           type=raw,value=latest,enable={{is_default_branch}}
           # For PR: use pr number
