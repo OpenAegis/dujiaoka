@@ -1,0 +1,9 @@
+<script src="/assets/riniba_01/js/vendor/jquery-3.6.3.min.js"></script>
+<script src="/assets/riniba_01/js/vendor/bootstrap.min.js"></script>
+<script src="/assets/riniba_01/js/vendor/ionrangeslider.js"></script>
+<script src="/assets/riniba_01/js/vendor/jquery.countdown.min.js"></script>
+<script src="/assets/riniba_01/js/vendor/slick.min.js"></script>
+<script src="/assets/riniba_01/js/vendor/jquery-appear.js"></script>
+<script src="/assets/riniba_01/js/vendor/jquery-validator.js"></script>
+<script src="/assets/riniba_01/js/vendor/aksVideoPlayer.js"></script>
+<script src="/assets/riniba_01/js/app.js"></script>
