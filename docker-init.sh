@@ -90,9 +90,20 @@ echo ""
 # 进入dujiaoka目录
 cd "$DUJIAOKA_DIR"
 
+# 创建docker-compose环境文件
+cat > .env.docker-compose << EOF
+DB_PASSWORD=$DB_PASSWORD
+MYSQL_ROOT_PASSWORD=$MYSQL_ROOT_PASSWORD
+APP_KEY=$APP_KEY
+EOF
+
+# 下载docker-compose配置文件
+echo "📥 下载docker-compose配置..."
+curl -sSL https://raw.githubusercontent.com/OpenAegis/dujiaoka/main/docker-compose.dev.yml -o docker-compose.yml
+
 # 启动服务
 echo "🚀 启动独角数卡服务..."
-DB_PASSWORD="$DB_PASSWORD" MYSQL_ROOT_PASSWORD="$MYSQL_ROOT_PASSWORD" docker-compose up -d
+docker-compose --env-file .env.docker-compose up -d
 
 # 等待服务启动
 echo "⏳ 等待服务启动..."
@@ -100,7 +111,11 @@ sleep 30
 
 # 检查服务状态
 echo "📊 检查服务状态..."
-docker-compose ps
+docker-compose --env-file .env.docker-compose ps
+
+# 初始化数据库
+echo "📊 初始化数据库..."
+docker exec dujiaoka_app php artisan migrate --force 2>/dev/null || echo "数据库迁移失败，请手动执行"
 
 echo ""
 echo "🎉 独角数卡启动完成！"
