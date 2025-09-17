@@ -36,29 +36,39 @@ jobs:
     - name: Get version info
       id: get_version
       run: |
-        # Get latest tag, fallback to v2.1.0 if no tags
-        LATEST_TAG=$(git tag --sort=-version:refname | head -1 2>/dev/null || echo "v2.1.0")
-        echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+        # Set default version
+        DEFAULT_VERSION="2.1.0"
         
-        # Extract version number without 'v' prefix
-        BASE_VERSION=${LATEST_TAG#v}
-        echo "base_version=$BASE_VERSION" >> $GITHUB_OUTPUT
+        # Get latest tag
+        LATEST_TAG=$(git tag --sort=-version:refname | head -1 2>/dev/null || echo "")
         
-        # Generate build number based on commit count since last tag
-        if git tag | grep -q .; then
-          BUILD_NUMBER=$(git rev-list --count ${LATEST_TAG}..HEAD 2>/dev/null || echo "0")
-        else
+        if [ -z "$LATEST_TAG" ]; then
+          # No tags found, use default
+          BASE_VERSION="$DEFAULT_VERSION"
           BUILD_NUMBER=$(git rev-list --count HEAD)
+        else
+          # Extract version number without 'v' prefix
+          BASE_VERSION=${LATEST_TAG#v}
+          # Generate build number based on commit count since last tag
+          BUILD_NUMBER=$(git rev-list --count ${LATEST_TAG}..HEAD 2>/dev/null || echo "0")
         fi
+        
+        echo "base_version=$BASE_VERSION" >> $GITHUB_OUTPUT
         echo "build_number=$BUILD_NUMBER" >> $GITHUB_OUTPUT
         
-        # Create full version with build number for main branch
-        if [ "${{ github.ref_name }}" = "main" ] && [ "$BUILD_NUMBER" -gt "0" ]; then
-          FULL_VERSION="${BASE_VERSION}-build.${BUILD_NUMBER}"
+        # Create version for main branch
+        if [ "${{ github.ref_name }}" = "main" ]; then
+          if [ "$BUILD_NUMBER" -gt "0" ]; then
+            FULL_VERSION="${BASE_VERSION}-build.${BUILD_NUMBER}"
+          else
+            FULL_VERSION="$BASE_VERSION"
+          fi
         else
           FULL_VERSION="$BASE_VERSION"
         fi
+        
         echo "full_version=$FULL_VERSION" >> $GITHUB_OUTPUT
+        echo "Generated version: $FULL_VERSION"
 
     - name: Extract metadata (tags, labels)
       id: meta
@@ -70,10 +80,12 @@ jobs:
           type=semver,pattern={{version}}
           type=semver,pattern={{major}}.{{minor}}
           type=semver,pattern={{major}}
-          # For main branch: use full version (base version + build number if applicable)
-          type=raw,value=${{ steps.get_version.outputs.full_version }},enable={{is_default_branch}}
-          # For main branch: also tag as latest
-          type=raw,value=latest,enable={{is_default_branch}}
+          # For main branch: use computed version
+          type=raw,value=${{ steps.get_version.outputs.full_version }},enable=${{ github.ref_name == 'main' && steps.get_version.outputs.full_version != '' }}
+          # For main branch: always tag as latest  
+          type=raw,value=latest,enable=${{ github.ref_name == 'main' }}
+          # For main branch: fallback version if full_version is empty
+          type=raw,value=2.1.0-dev,enable=${{ github.ref_name == 'main' && steps.get_version.outputs.full_version == '' }}
           # For PR: use pr number
           type=ref,event=pr,prefix=pr-
           # For other branches: use branch name
