@@ -198,7 +198,28 @@ done
 
 # 检查数据库连接
 echo "🔍 测试数据库连接..."
-docker exec dujiaoka_mysql mysql -u dujiaoka -p"$DB_PASSWORD" -e "SELECT 1;" dujiaoka 2>/dev/null && echo "✅ 数据库连接成功" || echo "❌ 数据库连接失败"
+echo "  使用密码: $DB_PASSWORD"
+echo "  数据库用户: dujiaoka"
+
+# 检查MySQL是否创建了用户
+echo "🔍 检查MySQL用户..."
+docker exec dujiaoka_mysql mysql -u root -p"$MYSQL_ROOT_PASSWORD" -e "SELECT User, Host FROM mysql.user WHERE User='dujiaoka';" 2>/dev/null || echo "无法查询用户信息"
+
+# 尝试用root连接测试
+echo "🔍 测试root连接..."
+docker exec dujiaoka_mysql mysql -u root -p"$MYSQL_ROOT_PASSWORD" -e "SELECT 1;" 2>/dev/null && echo "✅ Root连接成功" || echo "❌ Root连接失败"
+
+# 测试应用用户连接
+echo "🔍 测试应用用户连接..."
+docker exec dujiaoka_mysql mysql -u dujiaoka -p"$DB_PASSWORD" -e "SELECT 1;" dujiaoka 2>/dev/null && echo "✅ 数据库连接成功" || {
+    echo "❌ 数据库连接失败，尝试重新创建用户..."
+    docker exec dujiaoka_mysql mysql -u root -p"$MYSQL_ROOT_PASSWORD" -e "
+        DROP USER IF EXISTS 'dujiaoka'@'%';
+        CREATE USER 'dujiaoka'@'%' IDENTIFIED WITH mysql_native_password BY '$DB_PASSWORD';
+        GRANT ALL PRIVILEGES ON dujiaoka.* TO 'dujiaoka'@'%';
+        FLUSH PRIVILEGES;
+    " 2>/dev/null && echo "✅ 用户重新创建成功" || echo "❌ 用户创建失败"
+}
 
 # 初始化数据库
 echo "📊 初始化数据库..."
