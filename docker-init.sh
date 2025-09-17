@@ -439,33 +439,89 @@ echo "  重建语言缓存..."
 docker exec dujiaoka_app php artisan lang:publish 2>/dev/null || true
 docker exec dujiaoka_app php artisan optimize:clear 2>/dev/null || true
 
-# 简单的翻译修复 - 创建翻译初始化脚本
-echo "  创建翻译修复脚本..."
-docker exec dujiaoka_app bash -c 'cat > /app/fix-translations.php << "EOF"
+# Laravel 12 翻译修复 - 创建自定义翻译函数
+echo "  创建翻译修复系统..."
+docker exec dujiaoka_app bash -c 'cat > /app/public/trans-fix.php << "EOF"
 <?php
-// 翻译修复脚本 - 在应用启动时调用
-require __DIR__ . "/vendor/autoload.php";
-
-$app = require __DIR__ . "/bootstrap/app.php";
-$app->make("Illuminate\\Contracts\\Console\\Kernel")->bootstrap();
-
-$translator = app("translator");
-$translator->setLocale("zh_CN");
-
-// 手动加载dujiaoka翻译文件
-$dujiaokaPath = resource_path("lang/zh_CN/dujiaoka.php");
-if (file_exists($dujiaokaPath)) {
-    $translations = include $dujiaokaPath;
-    if (is_array($translations)) {
-        $translator->addLines($translations, "zh_CN", "dujiaoka");
-        echo "Translations loaded successfully\n";
+// Laravel 12 翻译修复函数
+if (!function_exists("trans_fix")) {
+    function trans_fix($key, $locale = "zh_CN") {
+        static $translations = null;
+        
+        if ($translations === null) {
+            $langFile = __DIR__ . "/../resources/lang/" . $locale . "/dujiaoka.php";
+            if (file_exists($langFile)) {
+                $translations = include $langFile;
+            } else {
+                $translations = [];
+            }
+        }
+        
+        // 解析 dujiaoka.group_all 格式的键
+        if (strpos($key, "dujiaoka.") === 0) {
+            $key = substr($key, 9); // 移除 "dujiaoka." 前缀
+        }
+        
+        // 处理嵌套键如 page-title.home
+        if (strpos($key, ".") !== false) {
+            $keys = explode(".", $key);
+            $value = $translations;
+            foreach ($keys as $k) {
+                if (isset($value[$k])) {
+                    $value = $value[$k];
+                } else {
+                    return "dujiaoka." . $key; // 返回原键
+                }
+            }
+            return $value;
+        }
+        
+        return $translations[$key] ?? ("dujiaoka." . $key);
     }
 }
 EOF'
 
-# 每次容器启动时运行翻译修复
-echo "  应用翻译修复..."
-docker exec dujiaoka_app php /app/fix-translations.php 2>/dev/null || echo "翻译修复完成"
+# 在index.php中集成翻译修复
+echo "  集成翻译修复到应用..."
+docker exec dujiaoka_app cp /app/public/index.php /app/public/index.php.original 2>/dev/null || true
+docker exec dujiaoka_app sed -i "2i require_once __DIR__ . \"/trans-fix.php\";" /app/public/index.php
+
+# 创建Blade模板翻译助手
+docker exec dujiaoka_app bash -c 'cat > /app/resources/views/trans-helper.blade.php << "EOF"
+@php
+// Blade模板翻译辅助函数
+if (!function_exists("dujiaoka_trans")) {
+    function dujiaoka_trans($key) {
+        static $cache = null;
+        
+        if ($cache === null) {
+            $langFile = resource_path("lang/zh_CN/dujiaoka.php");
+            $cache = file_exists($langFile) ? include $langFile : [];
+        }
+        
+        // 移除 dujiaoka. 前缀
+        if (strpos($key, "dujiaoka.") === 0) {
+            $key = substr($key, 9);
+        }
+        
+        // 处理嵌套键
+        if (strpos($key, ".") !== false) {
+            $keys = explode(".", $key);
+            $value = $cache;
+            foreach ($keys as $k) {
+                $value = $value[$k] ?? null;
+                if ($value === null) return $key;
+            }
+            return $value;
+        }
+        
+        return $cache[$key] ?? $key;
+    }
+}
+@endphp
+EOF'
+
+echo "✅ 翻译修复系统安装完成"
 
 # 最后再清理一次缓存确保语言设置生效
 docker exec dujiaoka_app php artisan config:clear 2>/dev/null || true
