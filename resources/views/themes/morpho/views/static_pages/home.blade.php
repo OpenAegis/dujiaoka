@@ -80,7 +80,7 @@
                                                 <div class="col-lg-6">
                                                     <div class="text-center">
                                                         @if($slide['image'])
-                                                            <img src="{{ asset('storage/' . $slide['image']) }}" 
+                                                            <img src="{{ asset('uploads/' . $slide['image']) }}" 
                                                                  alt="{{ $slide['title'] }}" 
                                                                  class="img-fluid"
                                                                  style="max-width: 400px;">
