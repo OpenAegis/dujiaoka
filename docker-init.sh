@@ -178,12 +178,28 @@ docker rm "$CONTAINER_NAME" > /dev/null
 echo "🔧 设置目录权限..."
 chown -R 1000:1000 "$DUJIAOKA_DIR"
 chmod -R 755 "$DUJIAOKA_DIR"
+
+# 设置Redis目录权限 (Redis容器使用用户ID 999)
+chown -R 999:999 "$DUJIAOKA_DIR/redis" 2>/dev/null || true
+chmod -R 755 "$DUJIAOKA_DIR/redis" 2>/dev/null || true
+
+# 设置MySQL目录权限 (MySQL容器使用用户ID 999)  
+chown -R 999:999 "$DUJIAOKA_DIR/mysql" 2>/dev/null || true
+chmod -R 755 "$DUJIAOKA_DIR/mysql" 2>/dev/null || true
+
+# 确保Laravel所有必需的目录存在
+echo "  创建Laravel缓存目录..."
+mkdir -p "$DUJIAOKA_DIR/storage/logs" 2>/dev/null || true
+mkdir -p "$DUJIAOKA_DIR/storage/framework/cache" 2>/dev/null || true
+mkdir -p "$DUJIAOKA_DIR/storage/framework/sessions" 2>/dev/null || true
+mkdir -p "$DUJIAOKA_DIR/storage/framework/views" 2>/dev/null || true
+mkdir -p "$DUJIAOKA_DIR/storage/app" 2>/dev/null || true
+mkdir -p "$DUJIAOKA_DIR/bootstrap/cache" 2>/dev/null || true
+
 # 设置Laravel必要的写入权限
+echo "  设置写入权限..."
 chmod -R 777 "$DUJIAOKA_DIR/storage" 2>/dev/null || true
 chmod -R 777 "$DUJIAOKA_DIR/bootstrap/cache" 2>/dev/null || true
-# 确保日志目录存在并有权限
-mkdir -p "$DUJIAOKA_DIR/storage/logs" 2>/dev/null || true
-chmod -R 777 "$DUJIAOKA_DIR/storage/logs" 2>/dev/null || true
 
 echo ""
 echo "✅ 初始化完成！"
@@ -270,8 +286,17 @@ docker exec dujiaoka_mysql mysql -u dujiaoka -p"$DB_PASSWORD" -e "SELECT 1;" duj
 
 # 确保容器内权限正确
 echo "🔧 设置容器内权限..."
+
+# 创建所有必需的缓存目录
+docker exec dujiaoka_app mkdir -p /app/storage/framework/cache /app/storage/framework/sessions /app/storage/framework/views /app/storage/logs /app/storage/app /app/bootstrap/cache
+
+# 设置正确的权限
 docker exec dujiaoka_app chown -R www-data:www-data /app/storage /app/bootstrap/cache
 docker exec dujiaoka_app chmod -R 777 /app/storage /app/bootstrap/cache
+
+# 清理可能存在的缓存文件
+docker exec dujiaoka_app rm -rf /app/storage/framework/cache/* 2>/dev/null || true
+docker exec dujiaoka_app rm -rf /app/bootstrap/cache/* 2>/dev/null || true
 
 # 首次安装时导入数据库
 if [ "$UPDATE_MODE" != true ]; then
