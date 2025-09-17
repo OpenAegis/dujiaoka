@@ -357,6 +357,46 @@ docker exec dujiaoka_app php artisan route:clear 2>/dev/null || true
 echo "  重新缓存配置..."
 docker exec dujiaoka_app php artisan config:cache 2>/dev/null || true
 
+# 修复语言文件问题 - 创建符号链接确保语言文件可访问
+echo "  修复语言文件访问..."
+docker exec dujiaoka_app php -r "
+try {
+    \$app = require '/app/bootstrap/app.php';
+    \$app->make('Illuminate\Contracts\Console\Kernel')->bootstrap();
+    
+    // 强制设置语言环境
+    app()->setLocale('zh_CN');
+    config(['app.locale' => 'zh_CN']);
+    config(['app.fallback_locale' => 'zh_CN']);
+    
+    // 检查语言文件是否存在
+    \$langPath = resource_path('lang/zh_CN/dujiaoka.php');
+    if (file_exists(\$langPath)) {
+        echo 'Language file exists: ' . \$langPath . PHP_EOL;
+    } else {
+        echo 'Language file missing: ' . \$langPath . PHP_EOL;
+    }
+    
+    // 测试翻译功能
+    \$translation = trans('dujiaoka.page-title.home');
+    echo 'Translation test: ' . \$translation . PHP_EOL;
+} catch (Exception \$e) {
+    echo 'Error: ' . \$e->getMessage() . PHP_EOL;
+}
+" 2>/dev/null || true
+
+# 确保语言文件权限正确
+docker exec dujiaoka_app chown -R www-data:www-data /app/resources/lang
+docker exec dujiaoka_app chmod -R 755 /app/resources/lang
+
+# 尝试发布语言文件和重建翻译缓存
+echo "  重建语言缓存..."
+docker exec dujiaoka_app php artisan lang:publish 2>/dev/null || true
+docker exec dujiaoka_app php artisan optimize:clear 2>/dev/null || true
+
+# 最后再清理一次缓存确保语言设置生效
+docker exec dujiaoka_app php artisan config:clear 2>/dev/null || true
+
 # 首次安装时导入数据库
 if [ "$UPDATE_MODE" != true ]; then
     echo "📊 导入初始数据库..."
