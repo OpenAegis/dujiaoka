@@ -40,29 +40,49 @@ jobs:
         echo "Current ref: ${{ github.ref_name }}"
         echo "Current commit: ${{ github.sha }}"
         
+        # Set default version
+        DEFAULT_VERSION="2.1.0"
+        
+        # Get latest tag
+        LATEST_TAG=$(git tag --sort=-version:refname | head -1 2>/dev/null || echo "")
+        echo "Latest tag found: '$LATEST_TAG'"
+        
+        # Extract base version
+        if [ -n "$LATEST_TAG" ]; then
+          BASE_VERSION=${LATEST_TAG#v}
+        else
+          BASE_VERSION="$DEFAULT_VERSION"
+        fi
+        
+        # Ensure base version is not empty
+        if [ -z "$BASE_VERSION" ]; then
+          BASE_VERSION="$DEFAULT_VERSION"
+        fi
+        
+        echo "Base version: '$BASE_VERSION'"
+        
         # Always use timestamp-based build number for main branch
         if [ "${{ github.ref_name }}" = "main" ]; then
-          # Get latest tag or use default
-          LATEST_TAG=$(git tag --sort=-version:refname | head -1 2>/dev/null || echo "v2.1.0")
-          BASE_VERSION=${LATEST_TAG#v}
-          
           # Use current timestamp for unique build number
           BUILD_NUMBER=$(date +%Y%m%d%H%M)
           FULL_VERSION="${BASE_VERSION}-build.${BUILD_NUMBER}"
           
-          echo "Latest tag: $LATEST_TAG"
-          echo "Base version: $BASE_VERSION"
           echo "Build number: $BUILD_NUMBER" 
           echo "Generated version: $FULL_VERSION"
         else
-          # For non-main branches, use simple version
-          LATEST_TAG=$(git tag --sort=-version:refname | head -1 2>/dev/null || echo "v2.1.0")
-          FULL_VERSION=${LATEST_TAG#v}
+          # For non-main branches, use base version
+          FULL_VERSION="$BASE_VERSION"
           echo "Non-main branch version: $FULL_VERSION"
         fi
         
+        # Final validation
+        if [ -z "$FULL_VERSION" ]; then
+          FULL_VERSION="$DEFAULT_VERSION"
+          echo "Warning: Empty version, using default: $FULL_VERSION"
+        fi
+        
         echo "full_version=$FULL_VERSION" >> $GITHUB_OUTPUT
-        echo "::notice::Generated version: $FULL_VERSION"
+        echo "::notice::Final generated version: $FULL_VERSION"
 
     - name: Extract metadata (tags, labels)
       id: meta
