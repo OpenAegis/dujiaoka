@@ -18,39 +18,53 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
-# 获取用户自定义域名/URL
-echo ""
-echo "🌐 配置访问地址"
-echo "请输入您的域名或IP地址 (不包含http://)"
-echo "示例: example.com 或 192.168.1.100 或 localhost"
-read -p "域名/IP地址: " USER_DOMAIN
+# 初始化变量
+SKIP_DOMAIN_INPUT=false
 
-# 验证输入
-if [ -z "$USER_DOMAIN" ]; then
-    echo "⚠️  未输入域名，使用默认 localhost"
-    USER_DOMAIN="localhost"
+# 预检查是否已存在安装，如果存在则跳过域名输入
+if [ -d "$DUJIAOKA_DIR" ] && [ "$(ls -A $DUJIAOKA_DIR 2>/dev/null)" ] && [ -f "$DUJIAOKA_DIR/.env.docker-compose" ]; then
+    EXISTING_APP_URL=$(grep "APP_URL" "$DUJIAOKA_DIR/.env.docker-compose" | cut -d'=' -f2)
+    if [ -n "$EXISTING_APP_URL" ]; then
+        SKIP_DOMAIN_INPUT=true
+    fi
 fi
 
-# 询问端口
-echo ""
-echo "请输入访问端口 (默认: 8080)"
-read -p "端口: " USER_PORT
+# 只在首次安装时询问域名配置
+if [ "$SKIP_DOMAIN_INPUT" != true ]; then
+    # 获取用户自定义域名/URL
+    echo ""
+    echo "🌐 配置访问地址"
+    echo "请输入您的域名或IP地址 (不包含http://)"
+    echo "示例: example.com 或 192.168.1.100 或 localhost"
+    read -p "域名/IP地址: " USER_DOMAIN
 
-if [ -z "$USER_PORT" ]; then
-    USER_PORT="8080"
+    # 验证输入
+    if [ -z "$USER_DOMAIN" ]; then
+        echo "⚠️  未输入域名，使用默认 localhost"
+        USER_DOMAIN="localhost"
+    fi
+
+    # 询问端口
+    echo ""
+    echo "请输入访问端口 (默认: 8080)"
+    read -p "端口: " USER_PORT
+
+    if [ -z "$USER_PORT" ]; then
+        USER_PORT="8080"
+    fi
+
+    # 验证端口是否为数字
+    if ! [[ "$USER_PORT" =~ ^[0-9]+$ ]]; then
+        echo "❌ 端口必须是数字，使用默认端口 8080"
+        USER_PORT="8080"
+    fi
+
+    # 构建完整URL
+    APP_URL="http://${USER_DOMAIN}:${USER_PORT}"
+    echo ""
+    echo "✅ 访问地址设置为: $APP_URL"
+    echo ""
 fi
-
-# 验证端口是否为数字
-if ! [[ "$USER_PORT" =~ ^[0-9]+$ ]]; then
-    echo "❌ 端口必须是数字，使用默认端口 8080"
-    USER_PORT="8080"
-fi
-
-# 构建完整URL
-APP_URL="http://${USER_DOMAIN}:${USER_PORT}"
-echo ""
-echo "✅ 访问地址设置为: $APP_URL"
-echo ""
 
 
 # 检查是否已存在安装
@@ -60,7 +74,14 @@ if [ -d "$DUJIAOKA_DIR" ] && [ "$(ls -A $DUJIAOKA_DIR 2>/dev/null)" ]; then
         EXISTING_APP_URL=$(grep "APP_URL" "$DUJIAOKA_DIR/.env.docker-compose" | cut -d'=' -f2)
         if [ -n "$EXISTING_APP_URL" ]; then
             APP_URL="$EXISTING_APP_URL"
-            echo "📍 检测到现有配置，访问地址: $APP_URL"
+            # 从现有URL提取端口用于docker-compose
+            USER_PORT=$(echo "$APP_URL" | sed -n 's/.*:\([0-9]*\)$/\1/p')
+            if [ -z "$USER_PORT" ]; then
+                USER_PORT="8080"
+            fi
+            echo "📍 检测到现有配置，访问地址: $APP_URL (端口: $USER_PORT)"
+            # 跳过域名输入
+            SKIP_DOMAIN_INPUT=true
         fi
     fi
     echo "⚠️  检测到已存在的独角数卡安装"
@@ -243,8 +264,26 @@ echo ""
 # 进入dujiaoka目录
 cd "$DUJIAOKA_DIR"
 
-# 创建docker-compose环境文件
-cat > .env.docker-compose << EOF
+# 创建或更新docker-compose环境文件
+if [ "$UPDATE_MODE" = true ] && [ -f ".env.docker-compose" ]; then
+    echo "🔄 更新模式 - 保留现有环境变量，仅更新必要配置..."
+    
+    # 读取现有的环境变量
+    source .env.docker-compose 2>/dev/null || true
+    
+    # 更新必要的变量（如果有新增的）
+    sed -i "s/^APP_KEY=.*/APP_KEY=$APP_KEY/" .env.docker-compose 2>/dev/null || echo "APP_KEY=$APP_KEY" >> .env.docker-compose
+    sed -i "s/^MYSQL_ROOT_PASSWORD=.*/MYSQL_ROOT_PASSWORD=$MYSQL_ROOT_PASSWORD/" .env.docker-compose 2>/dev/null || echo "MYSQL_ROOT_PASSWORD=$MYSQL_ROOT_PASSWORD" >> .env.docker-compose
+    sed -i "s/^DB_PASSWORD=.*/DB_PASSWORD=$DB_PASSWORD/" .env.docker-compose 2>/dev/null || echo "DB_PASSWORD=$DB_PASSWORD" >> .env.docker-compose
+    
+    # 添加新的环境变量（如果不存在）
+    grep -q "^APP_LOCALE=" .env.docker-compose || echo "APP_LOCALE=zh_CN" >> .env.docker-compose
+    grep -q "^APP_FALLBACK_LOCALE=" .env.docker-compose || echo "APP_FALLBACK_LOCALE=zh_CN" >> .env.docker-compose
+    
+    echo "✅ 环境变量更新完成，保留了用户自定义配置"
+else
+    echo "🆕 首次安装 - 创建新的环境配置文件..."
+    cat > .env.docker-compose << EOF
 # 应用配置
 APP_NAME=独角数卡
 APP_ENV=production
@@ -275,6 +314,7 @@ APP_LOCALE=zh_CN
 APP_FALLBACK_LOCALE=zh_CN
 DOCKER_TAG=latest
 EOF
+fi
 
 # 下载docker-compose配置文件
 echo "📥 下载docker-compose配置..."
