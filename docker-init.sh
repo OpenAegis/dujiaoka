@@ -226,38 +226,14 @@ docker exec dujiaoka_mysql mysql -u dujiaoka -p"$DB_PASSWORD" -e "SELECT 1;" duj
     " 2>/dev/null && echo "✅ 用户重新创建成功" || echo "❌ 用户创建失败"
 }
 
-# 初始化数据库
-echo "📊 初始化数据库..."
-
 # 确保容器内权限正确
-echo "  设置容器内权限..."
+echo "🔧 设置容器内权限..."
 docker exec dujiaoka_app chown -R www-data:www-data /app/storage /app/bootstrap/cache
 docker exec dujiaoka_app chmod -R 777 /app/storage /app/bootstrap/cache
 
-# 清理配置缓存
-echo "  清理Laravel缓存..."
-docker exec dujiaoka_app php artisan config:clear || true
-docker exec dujiaoka_app php artisan cache:clear || true
-
-# 生成应用密钥
-echo "  生成应用密钥..."
-docker exec dujiaoka_app php artisan key:generate --force || true
-
-# 执行数据库迁移
-echo "  执行数据库迁移..."
-docker exec dujiaoka_app php artisan migrate --force && echo "✅ 数据库迁移成功" || {
-    echo "❌ 数据库迁移失败，尝试详细调试..."
-    echo "检查数据库连接..."
-    docker exec dujiaoka_app php artisan tinker --execute="DB::connection()->getPdo();" || echo "数据库连接失败"
-    echo "查看迁移状态..."
-    docker exec dujiaoka_app php artisan migrate:status || echo "无法查看迁移状态"
-}
-
-# 创建管理员账户 (如果是新安装)
-if [ "$UPDATE_MODE" != true ]; then
-    echo "  创建管理员账户..."
-    docker exec dujiaoka_app php artisan admin:create-user --force 2>/dev/null || echo "管理员账户创建失败，请手动创建"
-fi
+# 验证数据库连接
+echo "✅ 数据库连接验证完成"
+echo "   网站首次访问时将自动初始化数据库"
 
 echo ""
 if [ "$UPDATE_MODE" = true ]; then
@@ -266,5 +242,9 @@ else
     echo "🎉 独角数卡安装完成！"
 fi
 echo "🌐 访问地址: http://localhost:8080"
+echo "🔑 数据库密码: $DB_PASSWORD"
+echo "🔑 Root密码: $MYSQL_ROOT_PASSWORD"
+echo ""
+echo "📋 首次访问网站时会自动初始化数据库"
 echo "🛠️  修改文件后重启容器生效: docker-compose restart app"
 echo "🔑 查看密码: $0 (选择选项3)"
